@@ -3,87 +3,97 @@ import { PaymentVerificationService } from '../services/PaymentVerificationServi
 export class PaymentController {
 
   /**
-   * Vérifier l'éligibilité d'un étudiant (sans le valider)
+   * Vérifier l'éligibilité ET valider automatiquement un étudiant
+   * 
    */
-  static async checkEligibility(req, res) {
+  // À ajouter dans votre PaymentController existant
+
+/**
+ * POST /api/v1/payment/check-scan-status
+ * Vérifie si un QR code (idetu) a déjà été scanné/validé
+ */
+static async checkScanStatus(req, res) {
+  try {
     const { idetu } = req.body;
 
     if (!idetu) {
       return res.status(400).json({
         success: false,
         message: "ID étudiant requis",
-        error: "Paramètre manquant"
+        data: null
       });
     }
 
-    try {
-      const result = await PaymentVerificationService.checkStudentEligibility(idetu);
-      
-      // Affichage console détaillé
-      if (result.success) {
-        console.log(`🎯 ÉLIGIBILITÉ - ${result.data.nom} ${result.data.prenom} (${idetu}): ÉLIGIBLE`);
-        console.log(`   💰 Montant: ${result.data.montant} Ar`);
-        console.log(`   ✅ Statut: Non validé (peut être validé)`);
-      } else {
-        console.log(`🚫 ÉLIGIBILITÉ - ID ${idetu}: NON ÉLIGIBLE`);
-        console.log(`   ❌ Raison: ${result.message}`);
-      }
+    console.log(`🔍 VÉRIFICATION SCAN STATUS - ID: ${idetu}`);
 
-      const statusCode = result.success ? 200 : 400;
-      res.status(statusCode).json(result);
+    const result = await PaymentVerificationService.checkIfAlreadyScanned(idetu);
 
-    } catch (error) {
-      console.error("🚨 Erreur vérification éligibilité:", error);
-      res.status(500).json({
-        success: false,
-        message: "Erreur serveur lors de la vérification",
-        error: error.message
-      });
+    if (result.alreadyScanned) {
+      console.log(`🚫 QR CODE DÉJÀ SCANNÉ - ID: ${idetu}`);
+      return res.status(409).json(result); // 409 Conflict
     }
+
+    console.log(`✅ QR CODE PEUT ÊTRE SCANNÉ - ID: ${idetu}`);
+    return res.status(200).json(result);
+
+  } catch (error) {
+    console.error(`❌ ERREUR CHECK SCAN STATUS - ID ${req.body?.idetu}:`, error.message);
+    return res.status(500).json({
+      success: false,
+      message: "Erreur interne du serveur",
+      error: error.message,
+      alreadyScanned: false
+    });
   }
+}
 
-  /**
-   * Valider un étudiant (scanner et validation)
-   */
-  static async validateStudent(req, res) {
+// Mise à jour de votre méthode PaymentController.checkAndValidate existante
+
+/**
+ * POST /api/v1/payment/check-eligibility
+ * Vérifie l'éligibilité ET valide automatiquement un étudiant
+ */
+static async checkAndValidate(req, res) {
+  try {
     const { idetu } = req.body;
 
     if (!idetu) {
       return res.status(400).json({
         success: false,
         message: "ID étudiant requis",
-        error: "Paramètre manquant"
+        data: null
       });
     }
 
-    try {
-      const result = await PaymentVerificationService.validateStudent(idetu);
-      
-      // Affichage console détaillé
-      if (result.success) {
-        console.log(`🏆 VALIDATION RÉUSSIE - ${result.data.nom} ${result.data.prenom} (${idetu})`);
-        console.log(`   💰 Montant: ${result.data.montant} Ar`);
-        console.log(`   ✅ Statut: VALIDÉ`);
-        console.log(`   📅 Validé le: ${result.data.validatedAt}`);
+    console.log(`🔍 VÉRIFICATION ÉLIGIBILITÉ - ID: ${idetu}`);
+
+    const result = await PaymentVerificationService.checkAndValidateStudent(idetu);
+
+    if (result.success) {
+      console.log(`✅ VALIDATION AUTOMATIQUE RÉUSSIE - ID: ${idetu}`);
+      return res.status(200).json(result);
+    } else {
+      if (result.alreadyScanned) {
+        console.log(`🚫 DÉJÀ VALIDÉ - ID: ${idetu}: ${result.message}`);
+        return res.status(409).json(result); // 409 Conflict pour déjà scanné
       } else {
-        console.log(`❌ VALIDATION ÉCHOUÉE - ID ${idetu}: ${result.message}`);
+        console.log(`❌ VALIDATION AUTOMATIQUE ÉCHOUÉE - ID ${idetu}: ${result.message}`);
+        return res.status(400).json(result);
       }
-
-      const statusCode = result.success ? 200 : 400;
-      res.status(statusCode).json(result);
-
-    } catch (error) {
-      console.error("🚨 Erreur validation étudiant:", error);
-      res.status(500).json({
-        success: false,
-        message: "Erreur serveur lors de la validation",
-        error: error.message
-      });
     }
+
+  } catch (error) {
+    console.error(`❌ ERREUR VALIDATION AUTOMATIQUE - ID ${req.body?.idetu}:`, error.message);
+    return res.status(500).json({
+      success: false,
+      message: "Erreur interne du serveur",
+      error: error.message
+    });
   }
+}
 
   /**
-   * Obtenir le statut d'un étudiant
+   * Statut d'un étudiant
    */
   static async getStudentStatus(req, res) {
     const { idetu } = req.params;
@@ -98,22 +108,7 @@ export class PaymentController {
 
     try {
       const result = await PaymentVerificationService.getStudentStatus(idetu);
-      
-      // Affichage console
-      if (result.success) {
-        const student = result.data;
-        console.log(`📊 STATUT - ${student.nom} ${student.prenom} (${idetu})`);
-        console.log(`   💰 Montant: ${student.montant} Ar`);
-        console.log(`   ✅ Validé: ${student.isValidated ? 'OUI' : 'NON'}`);
-        console.log(`   🎯 Peut être validé: ${student.canBeValidated ? 'OUI' : 'NON'}`);
-        if (student.validatedAt) {
-          console.log(`   📅 Validé le: ${student.validatedAt}`);
-        }
-      }
-
-      const statusCode = result.success ? 200 : 404;
-      res.status(statusCode).json(result);
-
+      res.status(result.success ? 200 : 404).json(result);
     } catch (error) {
       console.error("🚨 Erreur récupération statut:", error);
       res.status(500).json({
@@ -125,29 +120,14 @@ export class PaymentController {
   }
 
   /**
-   * Obtenir la liste des étudiants validés
+   * Liste des étudiants validés
    */
   static async getValidatedStudents(req, res) {
     const { limit = 50, offset = 0 } = req.query;
 
     try {
       const result = await PaymentVerificationService.getValidatedStudents(limit, offset);
-      
-      // Affichage console
-      console.log(`📋 ÉTUDIANTS VALIDÉS - Total: ${result.data.total}, Affichés: ${result.data.students.length}`);
-      
-      if (result.data.students.length > 0) {
-        console.table(result.data.students.map(s => ({
-          ID: s.idetu,
-          Nom: s.nom,
-          Prénom: s.prenom,
-          Montant: `${s.montant} Ar`,
-          ValidéLe: s.validated_at ? new Date(s.validated_at).toLocaleDateString() : '-'
-        })));
-      }
-
       res.status(200).json(result);
-
     } catch (error) {
       console.error("🚨 Erreur récupération étudiants validés:", error);
       res.status(500).json({
@@ -164,9 +144,17 @@ export class PaymentController {
   static async verifyPaymentLegacy(req, res) {
     const { idetu } = req.body;
 
+    if (!idetu) {
+      return res.status(400).json({
+        success: false,
+        message: "ID étudiant requis",
+        error: "Paramètre manquant"
+      });
+    }
+
     try {
-      const result = await PaymentVerificationService.checkStudentEligibility(idetu);
-      
+      const result = await PaymentVerificationService.checkAndValidateStudent(idetu);
+
       if (result.success) {
         res.status(200).json({
           message: "Paiement vérifié",
@@ -175,12 +163,11 @@ export class PaymentController {
           montant: result.data.montant,
         });
       } else {
-        res.status(404).json({ 
-          message: result.message 
-        });
+        res.status(404).json({ message: result.message });
       }
 
     } catch (error) {
+      console.error("🚨 Erreur vérification legacy:", error);
       res.status(500).json({ 
         message: "Erreur serveur", 
         error: error.message 

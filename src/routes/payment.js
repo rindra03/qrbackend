@@ -3,13 +3,20 @@ import { PaymentController } from '../controllers/paymentController.js';
 
 const router = express.Router();
 
-// Routes de vérification et validation des paiements
-router.post('/check-eligibility', PaymentController.checkEligibility);
-router.post('/validate', PaymentController.validateStudent);
+// --- Routes principales ---
+// NOUVELLE ROUTE : Vérifier si QR code déjà scanné
+router.post('/check-scan-status', PaymentController.checkScanStatus);
+
+// Vérifier l'éligibilité ET valider automatiquement après le scan
+router.post('/check-eligibility', PaymentController.checkAndValidate);
+
+// Obtenir le statut d'un étudiant
 router.get('/status/:idetu', PaymentController.getStudentStatus);
+
+// Obtenir la liste des étudiants validés
 router.get('/validated', PaymentController.getValidatedStudents);
 
-// Route legacy pour compatibilité
+// --- Routes legacy pour compatibilité avec anciens systèmes ---
 router.post('/verify', PaymentController.verifyPaymentLegacy);
 
 export default router;

@@ -1,3 +1,4 @@
+// src/app.js
 import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
@@ -40,17 +41,31 @@ app.get('/health', (req, res) => {
   });
 });
 
-// Routes API avec versioning
+// ====================
+// Routes API v1
+// ====================
 const API_VERSION = process.env.API_VERSION || 'v1';
+
+// Database routes
 app.use(`/api/${API_VERSION}/db`, databaseRoutes);
+
+// Auth routes
 app.use(`/api/${API_VERSION}/auth`, authRoutes);
+
+// Payment routes (inclut validation automatique après scan)
 app.use(`/api/${API_VERSION}/payment`, paymentRoutes);
 
-// Routes pour compatibilité avec ancien système (optionnel)
+// ====================
+// Routes Legacy (compatibilité)
+// ====================
 app.use('/tables', databaseRoutes);
 app.use('/table', databaseRoutes);
-app.use('/login', authRoutes); // Route legacy pour /logs
-app.use('/verify-payment', paymentRoutes); // Route legacy pour /verify-payment
+
+// Auth legacy (ancien système : /login)
+app.use('/login', authRoutes);
+
+// Payment legacy (ancien système : /verify)
+app.use('/verify-payment', paymentRoutes);
 
 // Middleware pour les routes non trouvées
 app.use(notFound);
